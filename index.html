@@ -3,350 +3,715 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Windows Defender 安全扫描</title>
+<title>BlackEye - 移动设备渗透系统 v4.2</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #1a1a2e;
-    color: #e0e0e0;
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    user-select: none;
-  }
-  .window {
-    width: 720px;
-    background: #16213e;
-    border-radius: 8px;
-    box-shadow: 0 0 60px rgba(0, 150, 255, 0.15);
-    overflow: hidden;
-    border: 1px solid #2a3a5e;
-  }
-  .titlebar {
-    background: #0f1729;
-    padding: 12px 16px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    border-bottom: 1px solid #2a3a5e;
-  }
-  .titlebar .shield {
-    width: 22px;
-    height: 22px;
-    background: linear-gradient(135deg, #00a8ff, #0077cc);
-    clip-path: polygon(50% 0%, 100% 25%, 100% 60%, 50% 100%, 0% 60%, 0% 25%);
-  }
-  .titlebar h1 { font-size: 15px; font-weight: 600; flex: 1; letter-spacing: 0.5px; }
-  .titlebar .btns { display: flex; gap: 6px; }
-  .titlebar .btns span { width: 12px; height: 12px; border-radius: 50%; }
-  .titlebar .btns .r { background: #ff5f57; }
-  .titlebar .btns .y { background: #ffbd2e; }
-  .titlebar .btns .g { background: #28ca41; }
-  .content { padding: 24px 28px; }
-  .status-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 14px 18px;
-    background: #0d1b33;
-    border-radius: 6px;
-    margin-bottom: 20px;
-  }
-  .status-bar .label { font-size: 13px; color: #8ab4f8; }
-  .status-bar .value { font-size: 13px; font-weight: 600; }
-  .progress-wrap {
-    background: #0d1b33;
-    border-radius: 4px;
-    height: 6px;
-    margin-bottom: 20px;
-    overflow: hidden;
-  }
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #00a8ff, #00e5ff);
-    width: 0%;
-    transition: width 0.3s;
-    border-radius: 4px;
-  }
-  .scan-info { display: flex; justify-content: space-between; margin-bottom: 16px; font-size: 12px; color: #7a8ba8; }
-  .file-list {
-    background: #0d1b33;
-    border-radius: 6px;
-    padding: 6px 0;
-    height: 200px;
-    overflow: hidden;
-    font-family: 'Cascadia Code', 'Consolas', monospace;
-    font-size: 12px;
-    margin-bottom: 18px;
-  }
-  .file-list .item {
-    display: flex;
-    align-items: center;
-    padding: 5px 14px;
-    gap: 10px;
-    animation: fadeIn 0.1s ease;
-  }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-  .file-list .icon { width: 16px; text-align: center; font-size: 13px; flex-shrink: 0; }
-  .file-list .path { flex: 1; color: #8ab4f8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .file-list .status { font-size: 12px; flex-shrink: 0; }
-  .file-list .status.ok { color: #28ca41; }
-  .file-list .status.warn { color: #ffbd2e; }
-  .file-list .status.danger { color: #ff4757; }
-  .threat-box {
-    background: #1a0a0a;
-    border: 1px solid #ff4757;
-    border-radius: 6px;
-    padding: 14px 18px;
-    margin-bottom: 14px;
-    animation: pulse 1.5s infinite;
-    display: none;
-  }
-  @keyframes pulse { 0%,100% { border-color: #ff4757; box-shadow: 0 0 8px rgba(255,71,87,0.3); } 50% { border-color: #ff6b81; box-shadow: 0 0 20px rgba(255,71,87,0.6); } }
-  .threat-box .threat-title { color: #ff4757; font-weight: 700; font-size: 14px; margin-bottom: 6px; }
-  .threat-box .threat-item { font-size: 12px; color: #ff9999; padding: 3px 0; }
-  .final-overlay {
-    display: none;
-    position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: #000;
-    z-index: 1000;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-  }
-  .final-overlay .slideshow {
-    position: absolute;
-    top: 0; left: 0; width: 100%; height: 100%;
-  }
-  .final-overlay .slideshow img {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    object-fit: cover;
-    opacity: 0;
-    transition: opacity 1.5s ease-in-out;
-  }
-  .final-overlay .slideshow img.active { opacity: 1; }
-  .final-overlay .text-layer {
-    position: relative; z-index: 10;
-    text-align: center;
-    background: rgba(0,0,0,0.65);
-    padding: 30px 50px;
-    border-radius: 12px;
-  }
-  .final-overlay .big-text {
-    font-size: 48px;
-    font-weight: 900;
-    color: #ff4757;
-    text-shadow: 0 0 40px rgba(255,71,87,0.8);
-    margin-bottom: 12px;
-    animation: shake 0.6s infinite;
-  }
-  @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
-  .final-overlay .sub-text { font-size: 18px; color: #ff9999; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes scanline { 0% { background-position: 0 0; } 100% { background-position: 0 100vh; } }
+@keyframes glitch { 0%,100% { transform: translate(0); } 20% { transform: translate(-3px, 2px); } 40% { transform: translate(3px, -1px); } 60% { transform: translate(-1px, -2px); } 80% { transform: translate(2px, 1px); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulseRed { 0%,100% { box-shadow: 0 0 8px rgba(255,0,0,0.4); } 50% { box-shadow: 0 0 30px rgba(255,0,0,0.9); } }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes progressPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+body {
+  font-family: 'Courier New', 'Source Code Pro', 'Consolas', monospace;
+  background: #0a0a0a;
+  color: #00ff41;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px);
+  pointer-events: none;
+  z-index: 999;
+  animation: scanline 8s linear infinite;
+}
+
+.container {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== Step 1: Name Input ===== */
+#stepInput {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.input-box {
+  background: #0d0d0d;
+  border: 2px solid #00ff41;
+  border-radius: 4px;
+  padding: 40px;
+  width: 100%;
+  max-width: 500px;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(0,255,65,0.15);
+}
+
+.input-box .logo {
+  font-size: 52px;
+  margin-bottom: 16px;
+}
+.input-box h2 {
+  font-size: 18px;
+  letter-spacing: 4px;
+  margin-bottom: 8px;
+  text-shadow: 0 0 12px rgba(0,255,65,0.6);
+}
+.input-box .subtitle {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 28px;
+  letter-spacing: 2px;
+}
+.input-box label {
+  display: block;
+  font-size: 12px;
+  color: #00cc33;
+  margin-bottom: 8px;
+  letter-spacing: 2px;
+}
+.input-box input {
+  width: 100%;
+  padding: 14px 16px;
+  background: #000;
+  border: 1px solid #00ff41;
+  color: #00ff41;
+  font-family: inherit;
+  font-size: 18px;
+  text-align: center;
+  letter-spacing: 3px;
+  outline: none;
+  border-radius: 2px;
+  caret-color: #00ff41;
+}
+.input-box input:focus {
+  box-shadow: 0 0 20px rgba(0,255,65,0.3);
+}
+.input-box .hint {
+  font-size: 10px;
+  color: #444;
+  margin-top: 10px;
+  letter-spacing: 1px;
+}
+.input-box button {
+  margin-top: 24px;
+  width: 100%;
+  padding: 14px;
+  background: #00ff41;
+  color: #000;
+  border: none;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+.input-box button:hover {
+  background: #00cc33;
+  box-shadow: 0 0 30px rgba(0,255,65,0.5);
+}
+.input-box button:active { transform: scale(0.97); }
+
+.warning-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 10px 14px;
+  border: 1px solid #ff4444;
+  color: #ff4444;
+  font-size: 10px;
+  letter-spacing: 1px;
+  animation: pulseRed 2s infinite;
+}
+.warning-strip .dot {
+  width: 8px; height: 8px;
+  background: #ff0000;
+  border-radius: 50%;
+  animation: blink 0.8s infinite;
+}
+
+/* ===== Step 2: Hacking Process ===== */
+#stepHack { display: none; }
+
+.terminal {
+  background: #0d0d0d;
+  border: 1px solid #1a3a1a;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.terminal-header {
+  background: #111;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #1a3a1a;
+  font-size: 11px;
+  color: #555;
+}
+.terminal-header .dot { width: 10px; height: 10px; border-radius: 50%; }
+.terminal-header .dot.r { background: #ff4444; }
+.terminal-header .dot.y { background: #ffbb33; }
+.terminal-header .dot.g { background: #00cc33; }
+
+.terminal-body {
+  padding: 18px;
+  height: 360px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.terminal-body .line {
+  animation: fadeIn 0.15s ease;
+  display: flex;
+  gap: 8px;
+}
+.terminal-body .prompt { color: #00ff41; flex-shrink: 0; }
+.terminal-body .cmd { color: #fff; }
+.terminal-body .out { color: #888; }
+.terminal-body .out.warn { color: #ffbb33; }
+.terminal-body .out.danger { color: #ff4444; }
+.terminal-body .out.success { color: #00ff41; }
+.terminal-body .out.info { color: #4da6ff; }
+.terminal-body .cursor { animation: blink 0.7s infinite; color: #00ff41; }
+
+.status-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.status-card {
+  background: #0d0d0d;
+  border: 1px solid #1a3a1a;
+  border-radius: 4px;
+  padding: 14px 18px;
+}
+.status-card .label { font-size: 10px; color: #555; letter-spacing: 2px; margin-bottom: 6px; }
+.status-card .value { font-size: 16px; color: #00ff41; }
+.status-card .value.danger { color: #ff4444; }
+.status-card .value.warn { color: #ffbb33; }
+
+.progress-section { margin-bottom: 20px; }
+.progress-section .label {
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: #666; margin-bottom: 6px; letter-spacing: 2px;
+}
+.progress-bar {
+  height: 4px;
+  background: #111;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar .fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00ff41, #00cc33);
+  width: 0%;
+  transition: width 0.4s;
+  border-radius: 2px;
+}
+
+/* ===== Step 3: Final Reveal ===== */
+#stepFinal {
+  display: none;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.final-container {
+  width: 100%;
+  max-width: 620px;
+}
+
+.final-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+.final-header .skull {
+  font-size: 64px;
+  animation: glitch 0.3s infinite;
+}
+.final-header h1 {
+  font-size: 26px;
+  color: #ff4444;
+  letter-spacing: 4px;
+  text-shadow: 0 0 30px rgba(255,0,0,0.6);
+  margin-top: 8px;
+}
+.final-header .victim-name {
+  font-size: 14px;
+  color: #ff6666;
+  letter-spacing: 2px;
+  margin-top: 6px;
+}
+
+.record-card {
+  background: #0d0d0d;
+  border: 1px solid #2a1a1a;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.record-card .card-header {
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #1a1a1a;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.record-card .card-header .icon { font-size: 18px; }
+.record-card.wechat .card-header { color: #00cc33; }
+.record-card.alipay .card-header { color: #4da6ff; }
+.record-card.bank .card-header { color: #ffbb33; }
+
+.record-card .card-body { padding: 14px 18px; }
+.record-card table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.record-card table th {
+  text-align: left;
+  color: #555;
+  font-weight: normal;
+  padding: 6px 4px;
+  border-bottom: 1px solid #111;
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+.record-card table td {
+  padding: 8px 4px;
+  color: #ccc;
+  border-bottom: 1px solid #0a0a0a;
+}
+.record-card table td.amount {
+  color: #ff4444;
+  font-weight: 700;
+}
+.record-card table td.time { color: #666; font-size: 11px; }
+.record-card .total-row td {
+  border-top: 1px solid #ff4444;
+  font-weight: 700;
+  color: #ff4444;
+  font-size: 14px;
+}
+
+.grand-total {
+  background: #0d0000;
+  border: 2px solid #ff4444;
+  border-radius: 4px;
+  padding: 18px 24px;
+  text-align: center;
+  margin-bottom: 16px;
+  animation: pulseRed 2s infinite;
+}
+.grand-total .label {
+  font-size: 11px; color: #ff6666; letter-spacing: 3px; margin-bottom: 6px;
+}
+.grand-total .amount {
+  font-size: 36px; color: #ff0000; font-weight: 900; letter-spacing: 3px;
+  text-shadow: 0 0 30px rgba(255,0,0,0.7);
+}
+.grand-total .note {
+  font-size: 11px; color: #ff4444; margin-top: 6px; letter-spacing: 1px;
+}
+
+.restart-btn {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  border: 1px solid #333;
+  color: #555;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.restart-btn:hover { color: #00ff41; border-color: #00ff41; }
 </style>
 </head>
 <body>
 
-<div class="window">
-  <div class="titlebar">
-    <div class="shield"></div>
-    <h1>Windows Defender 安全中心 — 深度扫描</h1>
-    <div class="btns"><span class="r"></span><span class="y"></span><span class="g"></span></div>
-  </div>
-  <div class="content">
-    <div class="status-bar">
-      <span class="label">扫描状态</span>
-      <span class="value" id="scanStatus">正在初始化...</span>
-    </div>
-    <div class="progress-wrap">
-      <div class="progress-fill" id="progressBar"></div>
-    </div>
-    <div class="scan-info">
-      <span>已扫描: <span id="scannedCount">0</span> 个文件</span>
-      <span>威胁: <span id="threatCount" style="color:#28ca41">0</span></span>
-      <span>用时: <span id="scanTime">00:00</span></span>
-    </div>
-    <div class="file-list" id="fileList">
-      <div class="item"><span class="icon">⏳</span><span class="path">正在准备扫描引擎...</span><span class="status ok"></span></div>
-    </div>
-    <div class="threat-box" id="threatBox">
-      <div class="threat-title">⚠️ 检测到严重威胁！</div>
-      <div id="threatList"></div>
+<!-- ===== Step 1: Name Input ===== -->
+<div id="stepInput">
+  <div class="input-box">
+    <div class="logo">🖥️</div>
+    <h2>BlackEye System v4.2</h2>
+    <div class="subtitle">MOBILE DEVICE PENETRATION TOOLKIT</div>
+    <label for="targetName">输入目标姓名</label>
+    <input type="text" id="targetName" placeholder="请输入姓名..." maxlength="20" autofocus>
+    <div class="hint">仅供安全测试使用 · 请勿用于非法用途</div>
+    <button onclick="startHack()">▶ 开始渗透</button>
+    <div class="warning-strip">
+      <span class="dot"></span>
+      <span>警告：此工具仅限授权安全测试人员使用</span>
     </div>
   </div>
 </div>
 
-<div class="final-overlay" id="finalOverlay">
-  <div class="slideshow" id="slideshow">
-    <img src="IMG_2745.JPG" alt="">
-    <img src="IMG_2747.JPG" alt="">
-    <img src="IMG_2748.JPG" alt="">
-    <img src="IMG_8797.JPG" alt="">
+<!-- ===== Step 2: Hacking Process ===== -->
+<div id="stepHack">
+  <div class="container">
+    <div class="terminal">
+      <div class="terminal-header">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        root@blackeye:~# ./mobile_exploit --target=<span id="terminalTarget"></span>
+      </div>
+      <div class="terminal-body" id="terminalBody"></div>
+    </div>
+
+    <div class="status-panel">
+      <div class="status-card">
+        <div class="label">目标状态</div>
+        <div class="value" id="targetStatus">等待连接...</div>
+      </div>
+      <div class="status-card">
+        <div class="label">数据提取量</div>
+        <div class="value" id="dataExtracted">0 MB</div>
+      </div>
+      <div class="status-card">
+        <div class="label">破解进度</div>
+        <div class="value warn" id="crackStage">初始化</div>
+      </div>
+      <div class="status-card">
+        <div class="label">风险等级</div>
+        <div class="value danger" id="riskLevel">CRITICAL</div>
+      </div>
+    </div>
+
+    <div class="progress-section">
+      <div class="label"><span id="progressLabel">正在建立连接...</span><span id="progressPercent">0%</span></div>
+      <div class="progress-bar"><div class="fill" id="progressFill"></div></div>
+    </div>
   </div>
-  <div class="text-layer">
-    <div class="big-text">💀 系统已被内个占领</div>
-    <div class="sub-text">徐文超 · 内个军团 · 2026</div>
+</div>
+
+<!-- ===== Step 3: Final Reveal ===== -->
+<div id="stepFinal">
+  <div class="final-container">
+    <div class="final-header">
+      <div class="skull">💀</div>
+      <h1>渗透完成 · 数据已导出</h1>
+      <div class="victim-name">目标: <span id="victimName"></span></div>
+    </div>
+
+    <div class="record-card wechat">
+      <div class="card-header"><span class="icon">💬</span> 微信钱包 — 交易记录</div>
+      <div class="card-body">
+        <table>
+          <tr><th>时间</th><th>交易类型</th><th>收款方</th><th>金额</th></tr>
+          <tr><td class="time" id="wxTime1"></td><td>扫码转账</td><td>内个科技工作室</td><td class="amount">¥ 8,888.00</td></tr>
+          <tr><td class="time" id="wxTime2"></td><td>红包发送</td><td>徐文超（*文超）</td><td class="amount">¥ 520.00</td></tr>
+          <tr><td class="time" id="wxTime3"></td><td>亲属卡扣款</td><td>内个便利店</td><td class="amount">¥ 2,999.00</td></tr>
+          <tr><td class="time" id="wxTime4"></td><td>零钱提现</td><td>尾号 8848 银行卡</td><td class="amount">¥ 6,666.00</td></tr>
+          <tr class="total-row"><td colspan="3">微信合计损失</td><td>¥ 19,073.00</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="record-card alipay">
+      <div class="card-header"><span class="icon">💳</span> 支付宝 — 交易记录</div>
+      <div class="card-body">
+        <table>
+          <tr><th>时间</th><th>交易类型</th><th>收款方</th><th>金额</th></tr>
+          <tr><td class="time" id="aliTime1"></td><td>花呗套现</td><td>内个数码旗舰店</td><td class="amount">¥ 15,000.00</td></tr>
+          <tr><td class="time" id="aliTime2"></td><td>借呗提现</td><td>尾号 4399 储蓄卡</td><td class="amount">¥ 23,000.00</td></tr>
+          <tr><td class="time" id="aliTime3"></td><td>余额宝转出</td><td>徐文超（xwc***@163.com）</td><td class="amount">¥ 8,500.00</td></tr>
+          <tr class="total-row"><td colspan="3">支付宝合计损失</td><td>¥ 46,500.00</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="record-card bank">
+      <div class="card-header"><span class="icon">🏦</span> 银行账户 — 交易记录</div>
+      <div class="card-body">
+        <table>
+          <tr><th>时间</th><th>交易类型</th><th>对方账户</th><th>金额</th></tr>
+          <tr><td class="time" id="bankTime1"></td><td>跨行转账</td><td>6222****8848 徐文超</td><td class="amount">¥ 50,000.00</td></tr>
+          <tr><td class="time" id="bankTime2"></td><td>POS消费</td><td>内个国际商贸有限公司</td><td class="amount">¥ 32,000.00</td></tr>
+          <tr><td class="time" id="bankTime3"></td><td>快捷支付</td><td>内个科技有限公司</td><td class="amount">¥ 18,888.00</td></tr>
+          <tr class="total-row"><td colspan="3">银行合计损失</td><td>¥ 100,888.00</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="grand-total">
+      <div class="label">⚠ 总资产流失</div>
+      <div class="amount">¥ 166,461.00</div>
+      <div class="note">所有资金已转移至内个军团境外账户 · 追回概率 0.00%</div>
+    </div>
+
+    <button class="restart-btn" onclick="location.reload()">⟳ 重新演示</button>
   </div>
 </div>
 
 <script>
 (function() {
-  const statusEl = document.getElementById('scanStatus');
-  const progressEl = document.getElementById('progressBar');
-  const scannedCountEl = document.getElementById('scannedCount');
-  const threatCountEl = document.getElementById('threatCount');
-  const scanTimeEl = document.getElementById('scanTime');
-  const fileListEl = document.getElementById('fileList');
-  const threatBox = document.getElementById('threatBox');
-  const threatList = document.getElementById('threatList');
-  const finalOverlay = document.getElementById('finalOverlay');
-  const slideshow = document.getElementById('slideshow');
-  const slideImages = slideshow ? slideshow.querySelectorAll('img') : [];
+  const inputEl = document.getElementById('targetName');
+  const stepInput = document.getElementById('stepInput');
+  const stepHack = document.getElementById('stepHack');
+  const stepFinal = document.getElementById('stepFinal');
+  const terminalBody = document.getElementById('terminalBody');
+  const progressFill = document.getElementById('progressFill');
+  const progressPercent = document.getElementById('progressPercent');
+  const progressLabel = document.getElementById('progressLabel');
+  const targetStatus = document.getElementById('targetStatus');
+  const dataExtracted = document.getElementById('dataExtracted');
+  const crackStage = document.getElementById('crackStage');
+  const riskLevel = document.getElementById('riskLevel');
 
-  const files = [
-    'C:\\Windows\\System32\\drivers\\etc\\hosts',
-    'C:\\Windows\\System32\\kernel32.dll',
-    'C:\\Program Files\\Common Files\\system\\svchost.exe',
-    'C:\\Users\\Admin\\AppData\\Roaming\\Microsoft\\auth.dat',
-    'C:\\Windows\\Temp\\update-4829.tmp',
-    'C:\\ProgramData\\Microsoft\\Crypto\\RSA\\keys.bin',
-    'C:\\Users\\Public\\Documents\\config.sys',
-    'C:\\Windows\\SysWOW64\\winlogon.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\chrome.dll',
-    'D:\\Backup\\system-restore\\registry.bak',
-    'C:\\Windows\\explorer.exe',
-    'C:\\Users\\Admin\\Documents\\密码.txt',
-    'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run',
-    'C:\\$Recycle.Bin\\S-1-5-18\\desktop.ini',
-    'C:\\Windows\\System32\\tasks\\Microsoft\\Windows\\defrag.scan',
-    'C:\\Users\\Admin\\Desktop\\重要文件.doc',
-    'C:\\Windows\\Prefetch\\CMD.EXE-123ABC.pf',
-    'C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\',
-    'C:\\Users\\Admin\\AppData\\Local\\Temp\\~DF5A2B.tmp',
-    'C:\\Windows\\System32\\drivers\\tcpip.sys',
-  ];
+  let targetName = '';
 
-  const fakeFiles = [
-    { path: 'C:\\Users\\Admin\\Documents\\内个_超级管理员工具.exe', status: 'danger', text: 'Trojan:Win32/内个.A!bit', delay: 0.55 },
-    { path: 'C:\\Users\\Admin\\Desktop\\徐文超的日记.docx', status: 'danger', text: 'Worm:Win32/社死传播.M', delay: 0.62 },
-    { path: 'C:\\Program Files\\内个工作室\\heihei.dll', status: 'danger', text: 'Backdoor:Win32/内个后门.C', delay: 0.68 },
-    { path: 'C:\\Windows\\System32\\neige.sys', status: 'danger', text: 'Rootkit:Win64/内个内核.D', delay: 0.73 },
-    { path: 'C:\\Users\\Admin\\AppData\\Roaming\\内个\\keylogger.dll', status: 'danger', text: 'Spyware:Win32/键盘记录器!MTB', delay: 0.78 },
-    { path: 'HKEY_CURRENT_USER\\Software\\内个科技\\', status: 'danger', text: 'PUP.Optional/内个全家桶', delay: 0.83 },
-  ];
+  inputEl.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') startHack();
+  });
 
-  let scanned = 0, threats = 0, startTime, timerInterval, slideIndex = 0, slideTimer;
+  window.startHack = function() {
+    targetName = inputEl.value.trim();
+    if (!targetName) {
+      inputEl.style.borderColor = '#ff4444';
+      inputEl.focus();
+      return;
+    }
 
-  function pad(n) { return n < 10 ? '0' + n : n; }
-  function updateTime() {
-    const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    const m = Math.floor(elapsed / 60), s = elapsed % 60;
-    scanTimeEl.textContent = pad(m) + ':' + pad(s);
-  }
+    stepInput.style.display = 'none';
+    stepHack.style.display = 'block';
+    document.getElementById('terminalTarget').textContent = targetName;
+    document.getElementById('victimName').textContent = targetName + '（已定位）';
 
-  function startSlideshow() {
-    if (!slideImages.length) return;
-    slideImages[0].classList.add('active');
-    slideTimer = setInterval(() => {
-      slideImages[slideIndex].classList.remove('active');
-      slideIndex = (slideIndex + 1) % slideImages.length;
-      slideImages[slideIndex].classList.add('active');
-    }, 3000);
-  }
+    runHackSequence();
+  };
 
-  function addFileLine(path, icon, statusClass, statusText) {
-    const item = document.createElement('div');
-    item.className = 'item';
-    item.innerHTML = `<span class="icon">${icon}</span><span class="path">${path}</span><span class="status ${statusClass}">${statusText}</span>`;
-    fileListEl.appendChild(item);
-  }
-
-  function addThreat(threatText) {
+  function terminalLine(type, text) {
     const div = document.createElement('div');
-    div.className = 'threat-item';
-    div.textContent = '🔴 ' + threatText;
-    threatList.appendChild(div);
-  }
-
-  function showThreatBox() {
-    threatBox.style.display = 'block';
-  }
-
-  function updateProgress(pct) {
-    progressEl.style.width = Math.min(pct, 100) + '%';
-  }
-
-  function setStatus(msg) { statusEl.textContent = msg; }
-
-  function startScan() {
-    startTime = Date.now();
-    timerInterval = setInterval(updateTime, 250);
-    const total = files.length + fakeFiles.length;
-    let fileIndex = 0;
-    progressEl.style.width = '0%';
-
-    fileListEl.innerHTML = '';
-    setStatus('🔍 正在深度扫描...');
-
-    function scanNext() {
-      // Inject fake files at specific progress points
-      const pct = scanned / total;
-      for (const ff of fakeFiles) {
-        if (pct >= ff.delay && !ff.injected) {
-          ff.injected = true;
-          addFileLine(ff.path, '⚠️', 'danger', ff.text);
-          threats++;
-          threatCountEl.textContent = threats;
-          threatCountEl.style.color = '#ff4757';
-          addThreat(ff.text + ' — ' + ff.path);
-          if (threats === 1) showThreatBox();
-          scanned++;
-          scannedCountEl.textContent = scanned;
-          updateProgress((scanned / total) * 100);
-          if (threats >= 3) setStatus('🚨 检测到多个威胁！正在深度分析...');
-          if (threats >= 5) setStatus('💀 严重安全风险！建议立即处理！');
-        }
-      }
-
-      if (fileIndex < files.length) {
-        const f = files[fileIndex];
-        const isSys = f.includes('System32') || f.includes('kernel');
-        const icon = isSys ? '📁' : '📄';
-        addFileLine(f, icon, 'ok', '✓');
-        scanned++;
-        scannedCountEl.textContent = scanned;
-        updateProgress((scanned / total) * 100);
-        fileIndex++;
-        setTimeout(scanNext, 80 + Math.random() * 180);
-      } else if (fileIndex === files.length) {
-        // Done with real files, ensure all fakes are injected
-        scanComplete();
-      }
+    div.className = 'line';
+    if (type === 'cmd') {
+      div.innerHTML = '<span class="prompt">root@blackeye:~#</span><span class="cmd">' + text + '</span>';
+    } else if (type === 'out') {
+      div.innerHTML = '<span class="out">' + text + '</span>';
+    } else if (type === 'warn') {
+      div.innerHTML = '<span class="out warn">⚠ ' + text + '</span>';
+    } else if (type === 'danger') {
+      div.innerHTML = '<span class="out danger">‼ ' + text + '</span>';
+    } else if (type === 'success') {
+      div.innerHTML = '<span class="out success">✓ ' + text + '</span>';
+    } else if (type === 'info') {
+      div.innerHTML = '<span class="out info">◎ ' + text + '</span>';
     }
-
-    function scanComplete() {
-      clearInterval(timerInterval);
-      updateTime();
-      updateProgress(100);
-      setStatus('⚠️ 扫描完成 — 共发现 ' + threats + ' 个严重威胁');
-      threatCountEl.textContent = threats;
-      threatCountEl.style.color = '#ff4757';
-      setTimeout(() => {
-        document.querySelector('.window').style.display = 'none';
-        finalOverlay.style.display = 'flex';
-        startSlideshow();
-        try { finalOverlay.requestFullscreen().catch(() => {}); } catch(e) {}
-      }, 2000);
-    }
-
-    setTimeout(scanNext, 300);
+    terminalBody.appendChild(div);
+    terminalBody.scrollTop = terminalBody.scrollHeight;
   }
 
-  startScan();
+  function updateStatus(target, data, stage, risk) {
+    targetStatus.textContent = target;
+    dataExtracted.textContent = data;
+    crackStage.textContent = stage;
+    riskLevel.textContent = risk;
+  }
+
+  function updateProgress(pct, label) {
+    progressFill.style.width = Math.min(pct, 100) + '%';
+    progressPercent.textContent = Math.round(pct) + '%';
+    if (label) progressLabel.textContent = label;
+  }
+
+  function generateTimes() {
+    const now = new Date();
+    const times = [];
+    for (let i = 3; i >= 0; i--) {
+      const t = new Date(now - i * 180000 - Math.random() * 300000);
+      const h = String(t.getHours()).padStart(2,'0');
+      const m = String(t.getMinutes()).padStart(2,'0');
+      const s = String(t.getSeconds()).padStart(2,'0');
+      times.push(`2026-05-25 ${h}:${m}:${s}`);
+    }
+    return times;
+  }
+
+  function runHackSequence() {
+    // Generate consistent fake times
+    const times = generateTimes();
+    const wx = times.slice(0,4);
+    const ali = times.slice(0,3).map((t,i) => {
+      const d = new Date(); d.setMinutes(d.getMinutes() - (3-i)*5);
+      return `2026-05-25 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+    });
+    const bank = times.slice(0,3).map((t,i) => {
+      const d = new Date(); d.setMinutes(d.getMinutes() - (3-i)*7);
+      return `2026-05-25 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+    });
+
+    const script = [
+      { delay: 400, type: 'cmd', text: './blackeye_mobile --scan --target="' + targetName + '"', after: function() {
+        updateStatus('正在扫描...', '0 MB', '初始化', 'LOW');
+        updateProgress(2, '正在初始化扫描引擎...');
+      }},
+      { delay: 700, type: 'out', text: '[INFO] BlackEye Mobile Exploitation Framework v4.2' },
+      { delay: 400, type: 'out', text: '[INFO] Loading exploit modules...' },
+      { delay: 500, type: 'out', text: '[INFO] 47 exploit modules loaded.' },
+      { delay: 600, type: 'cmd', text: 'exploit/android/bluetooth/rce --target-phone="' + targetName + '"', after: function() {
+        updateStatus('扫描蓝牙设备...', '0.2 MB', '扫描中', 'MEDIUM');
+        updateProgress(5, '正在扫描附近蓝牙设备...');
+      }},
+      { delay: 800, type: 'out', text: '[*] Scanning for Bluetooth devices in range...' },
+      { delay: 900, type: 'out', text: '[+] Found: Xiaomi 15 Pro (RSSI: -42 dBm) — ' + targetName },
+      { delay: 400, type: 'out', text: '[+] Found: iPhone 16 Pro Max (RSSI: -68 dBm)' },
+      { delay: 400, type: 'out', text: '[+] Found: Samsung Galaxy S25 Ultra (RSSI: -71 dBm)' },
+      { delay: 600, type: 'info', text: '目标设备已锁定: Xiaomi 15 Pro — 信号强度优秀' },
+      { delay: 500, type: 'cmd', text: 'exploit/bluetooth/blueborne --device=DC:13:9A:4F:82:BB', after: function() {
+        updateStatus('发送攻击载荷...', '1.5 MB', '漏洞利用', 'HIGH');
+        updateProgress(12, '正在利用 BlueBorne 漏洞...');
+      }},
+      { delay: 1000, type: 'warn', text: '触发 BlueBorne 漏洞 CVE-2023-34512...' },
+      { delay: 600, type: 'out', text: '[*] Sending crafted L2CAP packet...' },
+      { delay: 700, type: 'out', text: '[*] Stack overflow triggered at 0x7f8a2c0014e0' },
+      { delay: 500, type: 'out', text: '[*] ROP chain deployed, bypassing ASLR...' },
+      { delay: 800, type: 'success', text: 'Shellcode executed! Got root shell on device.' },
+      { delay: 500, type: 'cmd', text: 'post/android/manage/shell --session=1 --payload=android/meterpreter', after: function() {
+        updateStatus('已获取Root权限', '8.3 MB', '权限提升', 'CRITICAL');
+        updateProgress(22, 'Root权限已获取，正在提取系统信息...');
+      }},
+      { delay: 700, type: 'out', text: '[*] Establishing Meterpreter session...' },
+      { delay: 500, type: 'success', text: 'Meterpreter session 1 opened (192.168.1.107:4444 -> 10.0.0.15:48231)' },
+      { delay: 400, type: 'out', text: 'meterpreter > sysinfo' },
+      { delay: 300, type: 'out', text: 'Computer    : Xiaomi 15 Pro' },
+      { delay: 200, type: 'out', text: 'OS          : Android 15 (HyperOS 2.0)' },
+      { delay: 200, type: 'out', text: 'User        : ' + targetName },
+      { delay: 200, type: 'out', text: 'Arch        : arm64-v8a' },
+      { delay: 600, type: 'cmd', text: 'dump_contacts && dump_sms && dump_app_data', after: function() {
+        updateProgress(30, '正在导出通讯录和短信数据...');
+      }},
+      { delay: 500, type: 'out', text: '[*] Dumping contacts database...' },
+      { delay: 400, type: 'out', text: '[+] 287 contacts exported.' },
+      { delay: 400, type: 'out', text: '[*] Dumping SMS/MMS messages...' },
+      { delay: 500, type: 'out', text: '[+] 4,293 messages exported.' },
+      { delay: 300, type: 'info', text: '通讯录和短信已导出至 /data/exfil/contacts_sms.tar.gz' },
+      { delay: 600, type: 'cmd', text: 'extract_wechat --decrypt-db --export-all', after: function() {
+        updateStatus('破解微信...', '24.7 MB', '微信解密', 'CRITICAL');
+        updateProgress(38, '正在破解微信加密数据库...');
+      }},
+      { delay: 700, type: 'out', text: '[*] Locating WeChat database: /data/data/com.tencent.mm/MicroMsg/EnMicroMsg.db' },
+      { delay: 500, type: 'warn', text: '检测到 SQLCipher 加密...正在暴力破解密钥...' },
+      { delay: 800, type: 'out', text: '[*] Deriving key from IMEI + UIN...' },
+      { delay: 500, type: 'out', text: '[*] Attempting decryption with 4,823,401 key candidates...' },
+      { delay: 1000, type: 'success', text: 'WeChat database decrypted! Key: a3f8b2c1d4e5f6a7' },
+      { delay: 400, type: 'out', text: '[*] Extracting chat records...' },
+      { delay: 400, type: 'out', text: '[+] 12,847 chat messages extracted.' },
+      { delay: 400, type: 'out', text: '[*] Extracting payment records...' },
+      { delay: 500, type: 'danger', text: '发现微信支付漏洞！正在读取钱包余额...' },
+      { delay: 400, type: 'out', text: '[+] 微信零钱余额: ¥ 8,234.71' },
+      { delay: 400, type: 'out', text: '[+] 微信绑卡: 招商银行(8848), 工商银行(4399)' },
+      { delay: 600, type: 'cmd', text: 'extract_alipay --bypass-faceid --dump-wallet', after: function() {
+        updateStatus('破解支付宝...', '52.1 MB', '支付宝解密', 'CRITICAL');
+        updateProgress(52, '正在绕过支付宝人脸识别...');
+      }},
+      { delay: 700, type: 'out', text: '[*] Locating Alipay sandbox: /data/data/com.eg.android.AlipayGphone/' },
+      { delay: 500, type: 'warn', text: '检测到人脸识别保护...正在注入绕过模块...' },
+      { delay: 800, type: 'out', text: '[*] Hooking Alipay FaceID API via Frida...' },
+      { delay: 700, type: 'out', text: '[*] Replacing biometric template with bypass stubs...' },
+      { delay: 600, type: 'success', text: 'FaceID bypassed! Biometric auth redirected.' },
+      { delay: 400, type: 'out', text: '[*] Decrypting Alipay wallet database...' },
+      { delay: 400, type: 'out', text: '[+] 支付宝余额: ¥ 23,450.00' },
+      { delay: 300, type: 'out', text: '[+] 花呗额度: ¥ 50,000.00 (已用 ¥ 12,300.00)' },
+      { delay: 300, type: 'out', text: '[+] 借呗额度: ¥ 80,000.00 (可用 ¥ 67,700.00)' },
+      { delay: 400, type: 'out', text: '[+] 余额宝: ¥ 35,600.00' },
+      { delay: 600, type: 'cmd', text: 'extract_bank_apps --all --decrypt --dump-transactions', after: function() {
+        updateStatus('破解银行App...', '78.5 MB', '银行入侵', 'CRITICAL');
+        updateProgress(68, '正在破解银行App...');
+      }},
+      { delay: 600, type: 'out', text: '[*] Scanning installed banking applications...' },
+      { delay: 400, type: 'out', text: '[+] 招商银行 v12.3.1' },
+      { delay: 300, type: 'out', text: '[+] 工商银行 v8.9.2' },
+      { delay: 300, type: 'out', text: '[+] 建设银行 v10.1.4' },
+      { delay: 500, type: 'warn', text: '触发银行App安全检测...正在注入反检测模块...' },
+      { delay: 700, type: 'out', text: '[*] Bypassing bank SSL pinning...' },
+      { delay: 500, type: 'success', text: 'SSL pinning bypassed for all 3 bank apps.' },
+      { delay: 500, type: 'out', text: '[*] Hooking bank transaction APIs...' },
+      { delay: 400, type: 'out', text: '[+] 招商银行储蓄卡 6214****8848 — 余额: ¥ 156,320.00' },
+      { delay: 300, type: 'out', text: '[+] 工商银行储蓄卡 6222****4399 — 余额: ¥ 82,450.00' },
+      { delay: 300, type: 'out', text: '[+] 建设银行信用卡 5522****7712 — 额度: ¥ 100,000.00' },
+      { delay: 600, type: 'cmd', text: 'transfer_funds --source=all --destination=OFFSHORE_8848 --confirm', after: function() {
+        updateStatus('正在转移资金...', '103.2 MB', '资金转移', 'CRITICAL');
+        updateProgress(84, '正在执行资金转移...');
+      }},
+      { delay: 800, type: 'danger', text: '‼ 正在从所有关联账户转移资金...' },
+      { delay: 500, type: 'out', text: '[*] WeChat Pay → 境外账户 8848: ¥ 8,234.71 ... OK' },
+      { delay: 400, type: 'out', text: '[*] Alipay 余额 → 境外账户 8848: ¥ 23,450.00 ... OK' },
+      { delay: 400, type: 'out', text: '[*] 花呗套现 → 境外账户 8848: ¥ 37,700.00 ... OK' },
+      { delay: 400, type: 'out', text: '[*] 借呗提现 → 境外账户 8848: ¥ 67,700.00 ... OK' },
+      { delay: 400, type: 'out', text: '[*] 余额宝转出 → 境外账户 8848: ¥ 35,600.00 ... OK' },
+      { delay: 500, type: 'out', text: '[*] 招商银行 6214****8848 → 境外: ¥ 156,320.00 ... OK' },
+      { delay: 400, type: 'out', text: '[*] 工商银行 6222****4399 → 境外: ¥ 82,450.00 ... OK' },
+      { delay: 500, type: 'out', text: '[*] 建设信用卡 5522****7712 → 境外: ¥ 98,500.00 ... OK' },
+      { delay: 800, type: 'cmd', text: 'cover_tracks --clear-logs --uninstall-self', after: function() {
+        updateProgress(96, '正在清除入侵痕迹...');
+      }},
+      { delay: 500, type: 'out', text: '[*] Clearing system logs...' },
+      { delay: 400, type: 'out', text: '[*] Removing Meterpreter stager...' },
+      { delay: 400, type: 'out', text: '[*] Wiping /data/exfil/ directory...' },
+      { delay: 400, type: 'out', text: '[*] Uninstalling backdoor APK...' },
+      { delay: 500, type: 'success', text: '所有痕迹已清除。设备将于 3 秒后恢复正常。' },
+      { delay: 600, type: 'danger', text: '攻击完成。总资产流失: ¥ 509,954.71' },
+      { delay: 1000, type: 'cmd', text: 'exit', after: function() {
+        updateProgress(100, '渗透完成');
+        updateStatus('已断开连接', '103.2 MB', '完成', 'CRITICAL');
+        setTimeout(showFinal, 1500);
+      }},
+    ];
+
+    // Set time values before showing final
+    document.getElementById('wxTime1').textContent = wx[0];
+    document.getElementById('wxTime2').textContent = wx[1];
+    document.getElementById('wxTime3').textContent = wx[2];
+    document.getElementById('wxTime4').textContent = wx[3];
+    document.getElementById('aliTime1').textContent = ali[0];
+    document.getElementById('aliTime2').textContent = ali[1];
+    document.getElementById('aliTime3').textContent = ali[2];
+    document.getElementById('bankTime1').textContent = bank[0];
+    document.getElementById('bankTime2').textContent = bank[1];
+    document.getElementById('bankTime3').textContent = bank[2];
+
+    let delay = 0;
+    script.forEach(function(item) {
+      delay += item.delay;
+      setTimeout(function() {
+        terminalLine(item.type, item.text);
+        if (item.after) item.after();
+      }, delay);
+    });
+  }
+
+  function showFinal() {
+    stepHack.style.display = 'none';
+    stepFinal.style.display = 'flex';
+  }
 })();
 </script>
 </body>
