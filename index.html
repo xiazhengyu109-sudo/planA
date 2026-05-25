@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Windows Defender 安全扫描</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    user-select: none;
+  }
+  .window {
+    width: 720px;
+    background: #16213e;
+    border-radius: 8px;
+    box-shadow: 0 0 60px rgba(0, 150, 255, 0.15);
+    overflow: hidden;
+    border: 1px solid #2a3a5e;
+  }
+  .titlebar {
+    background: #0f1729;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid #2a3a5e;
+  }
+  .titlebar .shield {
+    width: 22px;
+    height: 22px;
+    background: linear-gradient(135deg, #00a8ff, #0077cc);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 60%, 50% 100%, 0% 60%, 0% 25%);
+  }
+  .titlebar h1 { font-size: 15px; font-weight: 600; flex: 1; letter-spacing: 0.5px; }
+  .titlebar .btns { display: flex; gap: 6px; }
+  .titlebar .btns span { width: 12px; height: 12px; border-radius: 50%; }
+  .titlebar .btns .r { background: #ff5f57; }
+  .titlebar .btns .y { background: #ffbd2e; }
+  .titlebar .btns .g { background: #28ca41; }
+  .content { padding: 24px 28px; }
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    background: #0d1b33;
+    border-radius: 6px;
+    margin-bottom: 20px;
+  }
+  .status-bar .label { font-size: 13px; color: #8ab4f8; }
+  .status-bar .value { font-size: 13px; font-weight: 600; }
+  .progress-wrap {
+    background: #0d1b33;
+    border-radius: 4px;
+    height: 6px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00a8ff, #00e5ff);
+    width: 0%;
+    transition: width 0.3s;
+    border-radius: 4px;
+  }
+  .scan-info { display: flex; justify-content: space-between; margin-bottom: 16px; font-size: 12px; color: #7a8ba8; }
+  .file-list {
+    background: #0d1b33;
+    border-radius: 6px;
+    padding: 6px 0;
+    height: 200px;
+    overflow: hidden;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12px;
+    margin-bottom: 18px;
+  }
+  .file-list .item {
+    display: flex;
+    align-items: center;
+    padding: 5px 14px;
+    gap: 10px;
+    animation: fadeIn 0.1s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .file-list .icon { width: 16px; text-align: center; font-size: 13px; flex-shrink: 0; }
+  .file-list .path { flex: 1; color: #8ab4f8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-list .status { font-size: 12px; flex-shrink: 0; }
+  .file-list .status.ok { color: #28ca41; }
+  .file-list .status.warn { color: #ffbd2e; }
+  .file-list .status.danger { color: #ff4757; }
+  .threat-box {
+    background: #1a0a0a;
+    border: 1px solid #ff4757;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    animation: pulse 1.5s infinite;
+    display: none;
+  }
+  @keyframes pulse { 0%,100% { border-color: #ff4757; box-shadow: 0 0 8px rgba(255,71,87,0.3); } 50% { border-color: #ff6b81; box-shadow: 0 0 20px rgba(255,71,87,0.6); } }
+  .threat-box .threat-title { color: #ff4757; font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+  .threat-box .threat-item { font-size: 12px; color: #ff9999; padding: 3px 0; }
+  .final-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: #000;
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+  }
+  .final-overlay .slideshow {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+  }
+  .final-overlay .slideshow img {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 1.5s ease-in-out;
+  }
+  .final-overlay .slideshow img.active { opacity: 1; }
+  .final-overlay .text-layer {
+    position: relative; z-index: 10;
+    text-align: center;
+    background: rgba(0,0,0,0.65);
+    padding: 30px 50px;
+    border-radius: 12px;
+  }
+  .final-overlay .big-text {
+    font-size: 48px;
+    font-weight: 900;
+    color: #ff4757;
+    text-shadow: 0 0 40px rgba(255,71,87,0.8);
+    margin-bottom: 12px;
+    animation: shake 0.6s infinite;
+  }
+  @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+  .final-overlay .sub-text { font-size: 18px; color: #ff9999; }
+</style>
+</head>
+<body>
+
+<div class="window">
+  <div class="titlebar">
+    <div class="shield"></div>
+    <h1>Windows Defender 安全中心 — 深度扫描</h1>
+    <div class="btns"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+  </div>
+  <div class="content">
+    <div class="status-bar">
+      <span class="label">扫描状态</span>
+      <span class="value" id="scanStatus">正在初始化...</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-fill" id="progressBar"></div>
+    </div>
+    <div class="scan-info">
+      <span>已扫描: <span id="scannedCount">0</span> 个文件</span>
+      <span>威胁: <span id="threatCount" style="color:#28ca41">0</span></span>
+      <span>用时: <span id="scanTime">00:00</span></span>
+    </div>
+    <div class="file-list" id="fileList">
+      <div class="item"><span class="icon">⏳</span><span class="path">正在准备扫描引擎...</span><span class="status ok"></span></div>
+    </div>
+    <div class="threat-box" id="threatBox">
+      <div class="threat-title">⚠️ 检测到严重威胁！</div>
+      <div id="threatList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="final-overlay" id="finalOverlay">
+  <div class="slideshow" id="slideshow">
+    <img src="IMG_2745.JPG" alt="">
+    <img src="IMG_2747.JPG" alt="">
+    <img src="IMG_2748.JPG" alt="">
+    <img src="IMG_8797.JPG" alt="">
+  </div>
+  <div class="text-layer">
+    <div class="big-text">💀 系统已被内个占领</div>
+    <div class="sub-text">徐文超 · 内个军团 · 2026</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const statusEl = document.getElementById('scanStatus');
+  const progressEl = document.getElementById('progressBar');
+  const scannedCountEl = document.getElementById('scannedCount');
+  const threatCountEl = document.getElementById('threatCount');
+  const scanTimeEl = document.getElementById('scanTime');
+  const fileListEl = document.getElementById('fileList');
+  const threatBox = document.getElementById('threatBox');
+  const threatList = document.getElementById('threatList');
+  const finalOverlay = document.getElementById('finalOverlay');
+  const slideshow = document.getElementById('slideshow');
+  const slideImages = slideshow ? slideshow.querySelectorAll('img') : [];
+
+  const files = [
+    'C:\\Windows\\System32\\drivers\\etc\\hosts',
+    'C:\\Windows\\System32\\kernel32.dll',
+    'C:\\Program Files\\Common Files\\system\\svchost.exe',
+    'C:\\Users\\Admin\\AppData\\Roaming\\Microsoft\\auth.dat',
+    'C:\\Windows\\Temp\\update-4829.tmp',
+    'C:\\ProgramData\\Microsoft\\Crypto\\RSA\\keys.bin',
+    'C:\\Users\\Public\\Documents\\config.sys',
+    'C:\\Windows\\SysWOW64\\winlogon.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\chrome.dll',
+    'D:\\Backup\\system-restore\\registry.bak',
+    'C:\\Windows\\explorer.exe',
+    'C:\\Users\\Admin\\Documents\\密码.txt',
+    'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run',
+    'C:\\$Recycle.Bin\\S-1-5-18\\desktop.ini',
+    'C:\\Windows\\System32\\tasks\\Microsoft\\Windows\\defrag.scan',
+    'C:\\Users\\Admin\\Desktop\\重要文件.doc',
+    'C:\\Windows\\Prefetch\\CMD.EXE-123ABC.pf',
+    'C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\',
+    'C:\\Users\\Admin\\AppData\\Local\\Temp\\~DF5A2B.tmp',
+    'C:\\Windows\\System32\\drivers\\tcpip.sys',
+  ];
+
+  const fakeFiles = [
+    { path: 'C:\\Users\\Admin\\Documents\\内个_超级管理员工具.exe', status: 'danger', text: 'Trojan:Win32/内个.A!bit', delay: 0.55 },
+    { path: 'C:\\Users\\Admin\\Desktop\\徐文超的日记.docx', status: 'danger', text: 'Worm:Win32/社死传播.M', delay: 0.62 },
+    { path: 'C:\\Program Files\\内个工作室\\heihei.dll', status: 'danger', text: 'Backdoor:Win32/内个后门.C', delay: 0.68 },
+    { path: 'C:\\Windows\\System32\\neige.sys', status: 'danger', text: 'Rootkit:Win64/内个内核.D', delay: 0.73 },
+    { path: 'C:\\Users\\Admin\\AppData\\Roaming\\内个\\keylogger.dll', status: 'danger', text: 'Spyware:Win32/键盘记录器!MTB', delay: 0.78 },
+    { path: 'HKEY_CURRENT_USER\\Software\\内个科技\\', status: 'danger', text: 'PUP.Optional/内个全家桶', delay: 0.83 },
+  ];
+
+  let scanned = 0, threats = 0, startTime, timerInterval, slideIndex = 0, slideTimer;
+
+  function pad(n) { return n < 10 ? '0' + n : n; }
+  function updateTime() {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const m = Math.floor(elapsed / 60), s = elapsed % 60;
+    scanTimeEl.textContent = pad(m) + ':' + pad(s);
+  }
+
+  function startSlideshow() {
+    if (!slideImages.length) return;
+    slideImages[0].classList.add('active');
+    slideTimer = setInterval(() => {
+      slideImages[slideIndex].classList.remove('active');
+      slideIndex = (slideIndex + 1) % slideImages.length;
+      slideImages[slideIndex].classList.add('active');
+    }, 3000);
+  }
+
+  function addFileLine(path, icon, statusClass, statusText) {
+    const item = document.createElement('div');
+    item.className = 'item';
+    item.innerHTML = `<span class="icon">${icon}</span><span class="path">${path}</span><span class="status ${statusClass}">${statusText}</span>`;
+    fileListEl.appendChild(item);
+  }
+
+  function addThreat(threatText) {
+    const div = document.createElement('div');
+    div.className = 'threat-item';
+    div.textContent = '🔴 ' + threatText;
+    threatList.appendChild(div);
+  }
+
+  function showThreatBox() {
+    threatBox.style.display = 'block';
+  }
+
+  function updateProgress(pct) {
+    progressEl.style.width = Math.min(pct, 100) + '%';
+  }
+
+  function setStatus(msg) { statusEl.textContent = msg; }
+
+  function startScan() {
+    startTime = Date.now();
+    timerInterval = setInterval(updateTime, 250);
+    const total = files.length + fakeFiles.length;
+    let fileIndex = 0;
+    progressEl.style.width = '0%';
+
+    fileListEl.innerHTML = '';
+    setStatus('🔍 正在深度扫描...');
+
+    function scanNext() {
+      // Inject fake files at specific progress points
+      const pct = scanned / total;
+      for (const ff of fakeFiles) {
+        if (pct >= ff.delay && !ff.injected) {
+          ff.injected = true;
+          addFileLine(ff.path, '⚠️', 'danger', ff.text);
+          threats++;
+          threatCountEl.textContent = threats;
+          threatCountEl.style.color = '#ff4757';
+          addThreat(ff.text + ' — ' + ff.path);
+          if (threats === 1) showThreatBox();
+          scanned++;
+          scannedCountEl.textContent = scanned;
+          updateProgress((scanned / total) * 100);
+          if (threats >= 3) setStatus('🚨 检测到多个威胁！正在深度分析...');
+          if (threats >= 5) setStatus('💀 严重安全风险！建议立即处理！');
+        }
+      }
+
+      if (fileIndex < files.length) {
+        const f = files[fileIndex];
+        const isSys = f.includes('System32') || f.includes('kernel');
+        const icon = isSys ? '📁' : '📄';
+        addFileLine(f, icon, 'ok', '✓');
+        scanned++;
+        scannedCountEl.textContent = scanned;
+        updateProgress((scanned / total) * 100);
+        fileIndex++;
+        setTimeout(scanNext, 80 + Math.random() * 180);
+      } else if (fileIndex === files.length) {
+        // Done with real files, ensure all fakes are injected
+        scanComplete();
+      }
+    }
+
+    function scanComplete() {
+      clearInterval(timerInterval);
+      updateTime();
+      updateProgress(100);
+      setStatus('⚠️ 扫描完成 — 共发现 ' + threats + ' 个严重威胁');
+      threatCountEl.textContent = threats;
+      threatCountEl.style.color = '#ff4757';
+      setTimeout(() => {
+        document.querySelector('.window').style.display = 'none';
+        finalOverlay.style.display = 'flex';
+        startSlideshow();
+        try { finalOverlay.requestFullscreen().catch(() => {}); } catch(e) {}
+      }, 2000);
+    }
+
+    setTimeout(scanNext, 300);
+  }
+
+  startScan();
+})();
+</script>
+</body>
+</html>
